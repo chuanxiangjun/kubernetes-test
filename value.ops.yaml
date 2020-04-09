@@ -1,0 +1,108 @@
+replicaCount: 2
+
+image:
+  repository: harbor.myxiaoqi.com/dev/fantasy_kubernetes_test
+  tag: latest
+  pullPolicy: Always
+  configmap: 
+    aliyun_logs_fantasy-hwbrowser-api: stdout
+    JAVA_OPTS_XMX: 2048m
+    JAVA_OPTS_XMS: 2048m
+    JAVA_OPTS_XMN: 1024m
+    APP_MAINCLASS: com.tcl.benchmark.kubernetestest.KubernetesTestApplication
+    CLASSPATH: "/app/conf:/app/lib/*"
+    SW_AGENT_NAMESPACE: "workspace"
+    SW_AGENT_NAME: "kubernetes-test-api"
+    SW_AGENT_COLLECTOR_BACKEND_SERVICES: "chart-1578380866-skywalking-skywalking-oap.skywalking-yaml:11800"
+
+imagePullSecrets: [name: "registry-harbor"]
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  annotations: {}
+  hosts:
+    - host: fantasy-hwbrowser-test.myxiaoqi.com
+      paths: 
+      - "/"
+
+  tls: []
+
+resources: 
+  limits:
+    cpu: 1024m
+    memory: 2Gi
+  requests:
+    cpu: 1024m
+    memory: 2Gi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+arms: false
+
+agentconf: |
+  agent.service_name=${SW_AGENT_NAME:kubernetes-test-api}
+  collector.backend_service=${SW_AGENT_COLLECTOR_BACKEND_SERVICES:127.0.0.1:11800}
+  logging.file_name=${SW_LOGGING_FILE_NAME:skywalking-api.log}
+  logging.level=${SW_LOGGING_LEVEL:INFO}
+  logging.max_file_size=${SW_LOGGING_MAX_FILE_SIZE:314572800}
+  logging.max_history_files=1
+filebeatconfig: |
+  filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /data/logs/kubernetes-test/*
+    fields:
+      log_topics: serv_online_topic
+    scan_frequency: 20s
+    multiline.pattern: ^\d\d\d\d-\d\d-\d\d\s\d\d:\d\d:\d\d,\d\d\d
+    multiline.negate: true
+    multiline.match: after
+    multiline.max_lines: 1000
+    multiline.timeout: 5s
+    tail_files: true
+  - type: log
+    enabled: true
+    paths:
+      - /data/logs/xagent/*
+    fields:
+      log_topics: jvm_online_topic 
+    tail_files: true
+  filebeat.config.modules:
+    path: ${path.config}/modules.d/*.yml
+    reload.enabled: false
+  setup.template.settings:
+    index.number_of_shards: 3
+  queue.mem.events: 256
+  queue.mem.flush.min_events: 128
+  queue:
+    mem:
+      events: 512
+      flush.min_events: 256
+      write:
+        buffer_size: 1MiB
+        flush.timeout: 1s
+        flush.events: 16384
+      read:
+  max_procs: 1
+  output.kafka:
+    enabled: true
+    hosts: ["10.143.1.212:9092"]
+    topic: '%{[fields][log_topics]}'
+    version: '0.10.2.1'
+    worker: 1
+    bulk_max_size: 256
+    channel_buffer_size: 128
+    compression: gzip
+    max_message_bytes: 1000000
+    required_acks: 1
